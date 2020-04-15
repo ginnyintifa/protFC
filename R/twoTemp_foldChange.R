@@ -2,6 +2,8 @@
 
 #' This function allows you to calculate the fold change of two different temperatures and to visualize.  
 #' @param rawDate_inputfilename1 absolute path to your input file of temperature 1 
+#' @import dplyr magrittr data.table 
+#' @export
 
 
 twoTemp_foldChange = function(rawData_inputfilename1,
