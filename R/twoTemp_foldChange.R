@@ -5,7 +5,6 @@
 #' @import dplyr magrittr data.table 
 #' @export
 
-
 twoTemp_foldChange = function(rawData_inputfilename1,
                            rawData_inputfilename2,
                            seqCol = 3,
