@@ -1,0 +1,39 @@
+---
+title: "Untitled"
+author: "GINNY"
+date: "15/04/2020"
+output: html_document
+---
+
+for YT to try
+
+```{r}
+
+
+install_github("ginnyintifa/protFC")
+
+
+
+twoTemp_foldChange(rawData_inputfilename1 = "C:/Users/limyt/Documents/R/HDACGinny/20200120_NB_HDAC37_F_PeptideGroups.txt",
+                           rawData_inputfilename2 = "C:/Users/limyt/Documents/R/HDACGinny/20200121_NB_HDAC52_F_PeptideGroups.txt",
+                           seqCol = 3,
+                           protAccCol = 10,
+                           desCol = 13,
+                           sp1ctrlCol = 16,
+                           sp2ctrlCol = 17,
+                           sp1lowCol = 18,
+                           sp2lowCol = 19,
+                           sp1highCol = 20,
+                           sp2highCol = 21,
+                           workingDir = "C:/Users/limyt/Documents/R/HDACGinny/",
+                           mapDIA_flag = F,
+                           mapDIADir = "C:/Users/limyt/Documents/R/mapDIA-master/",
+                           userSystem = "Windows",
+                           defaultInput_parameter = "C:/Users/limyt/Documents/R/mapDIA-master/YTinput",
+                           cutoff_uFc = 1.3,
+                           cutoff_lFc = 0.7,
+                           cutoff_mapDIA = 0.05,
+                           outputTagS1 = "lowVSctrl",
+                           outputTagS2 = "highVSctrl")
+
+```
