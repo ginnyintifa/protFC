@@ -1,38 +1,77 @@
-#YanTing hdac 20200309 functions 
+
+
+### if there are 3 replicates 
+
+
+### I think I should make it applicable to any number of reps
+# 
+# library(dplyr)
+# library(data.table)
+# library(magrittr)
+# # 
+# rawData_inputfilename1 = "/data/ginny/YanTingProtein/20200813_TF_MEHP37_F_PeptideGroups.txt"
+# rawData_inputfilename2 = "/data/ginny/YanTingProtein/20200813_TF_MEHP53_F_PeptideGroups.txt"
+# inputSpec_filename =  "/data/ginny/YanTingProtein/20200813_TF_spCol_positions.txt"
+# 
+# seqCol = 3
+# protAccCol = 10
+# desCol = 13
+# 
+# sp1ctrlCol = 16
+# sp2ctrlCol = 17
+# sp1lowCol = 18
+# sp2lowCol = 19
+# sp1highCol = 20
+# sp2highCol = 21
+# workingDir = "/data/ginny/YanTingProtein/foldChange0819/"
+# mapDIA_flag = F
+# mapDIADir = "/data/ginny/mapDIA-master/"
+# userSystem = "Linux"
+# defaultInput_parameter = "/data/ginny/YanTingProtein/YTinput"
+# cutoff_uFc = 1.3
+# cutoff_lFc = 0.7
+# cutoff_mapDIA = 0.05
+# outputTagS1 = "lowVSctrl"
+# outputTagS2 = "highVSctrl"
 
 
 
-
-
-
-
-readInTidy = function(raw_data_filename,
-                      seq = 3,
-                      protAcc = 10,
-                      des = 13,
-                      sp1ctrl = 16,
-                      sp2ctrl = 17,
-                      sp1low = 18,
-                      sp2low = 19,
-                      sp1high = 20,
-                      sp2high = 21,
-                      output_name )
+readInTidy_r = function(raw_data_filename,
+                        data_col_filename,
+                                        output_name )
 {
-  raw = fread(raw_data_filename, stringsAsFactors = F)
   
-  sel_col = c(protAcc, seq, des, sp1ctrl, sp2ctrl, sp1low, sp2low, sp1high, sp2high)
+  # raw_data_filename = rawData_inputfilename1
+  # data_col_filename = inputSpec_filename
+  #  output_name = cleanData_outputname1
+  # 
+  # 
+  raw = fread(raw_data_filename, stringsAsFactors = F, data.table = F)
+  spec = fread(data_col_filename, stringsAsFactors = F, data.table = F)
   
-  sel_data = raw[, ..sel_col]
+ cond_names = grep("cond_", spec$feature, value = T)
   
-  colnames(sel_data) = c("protein", "seq", "description", "b1_ctrl","b2_ctrl","b1_low","b2_low","b1_high","b2_high")
+  #### suppose there are control low high and the number of reps is elastic 
+  
+  ctrl_cols = spec$position[grep("cond_ctrl", spec$feature)]
+  low_cols = spec$position[grep("cond_low", spec$feature)]
+  hight_cols = spec$position[grep("cond_high", spec$feature)]
+  seq = spec$position[which(spec$feature == "seq")]
+  acc = spec$position[which(spec$feature == "acc")]
+  des = spec$position[which(spec$feature == "des")]
+  
+  sel_col = c(acc, seq, des, ctrl_cols, low_cols, hight_cols)
+  
+  sel_data = raw[,sel_col]
+  
+  colnames(sel_data) = c("protein", "seq", "description", cond_names )
   
   
-  
-  
+
   fil_data = sel_data%>%
     na.omit() 
   
- ### separate proteins 
+  ### separate proteins 
   
   
   
@@ -90,7 +129,7 @@ readInTidy = function(raw_data_filename,
   pd_combine_df = combine_df%>%
     dplyr::mutate(protein = paste(protein, description, sep = "_"))%>%
     dplyr::select(-description)
-
+  
   write.table(pd_combine_df, output_name, 
               quote = F, row.names = F, sep = "\t")
   
@@ -101,57 +140,191 @@ readInTidy = function(raw_data_filename,
 }
 
 
-### ok 
-### after this I need to make sure the gn col is not lost in the following functions 
 
+# 
+# npos = function(x)
+# {
+#   return(length(which(x>0)))
+# }
+# 
+# 
+# nneg = function(x)
+# {
+#   return(length(which(x<0)))
+# }
 
-
-
-
-
-
-
-
-##### 
-
-
-#### I think reliability if need to be evaluated, should be done before agg and before normalization 
-npos = function(x)
+nzero = function(x)
 {
-  return(length(which(x>0)))
+  return(length(which(x==0)))
 }
 
 
-nneg = function(x)
-{
-  return(length(which(x<=0)))
-}
 
 
-testReliability_afterFC = function(peptide_fc,
-                           output_name)
+test_equal_sign = function(x)
 {
-#   peptide_fc = fc37
-#   output_name = reliability_outputname1
-#   
+  x_sign = sign(x)
+  x_sign_equal <- var(x_sign)==0
+  return(x_sign_equal)
   
-  rel_data = peptide_fc%>%
-    dplyr::mutate(drl = fc_l_b1* fc_l_b2, drh = fc_h_b1*fc_h_b2)
+}
 
+
+
+
+calFoldChange1_r = function(peptide_df,
+                          output_name)
+{
+  # 
+  # peptide_df = pep37
+  # output_name = foldChange_outputname1
+  # 
+  
+  data_pep = log2(peptide_df[,-c(1,2,3)])
+  
+  ### normalize 
+  
+  
+  each_med = apply(data_pep, 2, median)
+  
+  med_each_med = median(each_med)
+  
+  norm_pep_log2data = sweep(data_pep, 2, each_med) + med_each_med
+  
+  ### get fold change
+  #### how to keep tracking the gene name of each protein 
+  
+
+  
+  
+  
+  norm_log_peptide_df = cbind(peptide_df[,c(1,2,3)], norm_pep_log2data)%>%
+    dplyr::group_by(protein, description)%>%
+    dplyr::summarise_if(is.numeric, mean, na.rm = T)%>%
+    dplyr::ungroup()
+  
+  
+  norm_log_peptide_df = as.data.frame(norm_log_peptide_df)
+  
+  cond_names = grep("cond_", colnames(norm_log_peptide_df), value = T)
+  num_rep = length(cond_names)/3
+  
+  ### get correct cols 
+  ctrl_cols = rep(0, num_rep)
+  low_cols = rep(0, num_rep)
+  high_cols = rep(0, num_rep)
+  
+  
+  for(i in 1:num_rep)
+  {
+    
+    ctrl_cols[i] = which(colnames(norm_log_peptide_df) == paste0("cond_ctrl_", i))
+    low_cols[i] = which(colnames(norm_log_peptide_df) == paste0("cond_low_", i))
+    high_cols[i] = which(colnames(norm_log_peptide_df) == paste0("cond_high_", i))
+    
+    
+  }
+  
+  
+  lc_fc_rep = rep(0, num_rep)
+  hc_fc_rep = rep(0, num_rep)
+  
+
+  
+  data_df = rbindlist(lapply(1:nrow(norm_log_peptide_df), function(x) {
+    
+    for(i in 1:num_rep)
+    {
+      lc_fc_rep[i] = norm_log_peptide_df[x, low_cols[i]] - norm_log_peptide_df[x, ctrl_cols[i]]
+      hc_fc_rep[i] = norm_log_peptide_df[x, high_cols[i]] - norm_log_peptide_df[x, ctrl_cols[i]]
+      
+    }
+    
+    lc_fc_mean = mean(lc_fc_rep, na.rm = T)
+    hc_fc_mean = mean(hc_fc_rep, na.rm = T)
+    
+    lc_fc_sd = sd(lc_fc_rep, na.rm = T)
+    hc_fc_sd = sd(hc_fc_rep, na.rm = T)
+    
+    ### constrauct the order for l and high vs control
+    
+    lc_fc_order = paste(order(lc_fc_rep), collapse = "_")
+    hc_fc_order = paste(order(hc_fc_rep), collapse = "_")
+    
+    this_df = data.frame(t(lc_fc_rep), t(hc_fc_rep), 
+                         lc_fc_mean, hc_fc_mean,
+                         lc_fc_sd, hc_fc_sd,
+                         lc_fc_order, hc_fc_order,
+                         stringsAsFactors = F)
+    
+    
+    colnames(this_df)[1:(2*num_rep)] = c(paste0("lc_fc_", seq(1:num_rep)), paste0("hc_fc_", seq(1:num_rep)))
+      
+    if(x%%1000 == 0 )
+      cat(x,"\n")
+    
+      return(this_df)
+      
+    
+  }))
+  
+  
+  norm_log_peptide_data_df = cbind(norm_log_peptide_df, data_df)
+  
+  write.table(norm_log_peptide_data_df, 
+              output_name,
+              quote = F, row.names = F, sep = "\t")
+  
+  
+  return(norm_log_peptide_data_df)
+  
+  
+  
+  
+}
+
+
+
+
+
+
+testReliability_afterFC_r = function(peptide_fc,
+                                   output_name)
+{
+    # peptide_fc = fc37
+    # output_name = reliability_outputname1
+    # 
+  #   
+    # 
+    # it = peptide_fc%>%
+    #   dplyr::select(protein, description)%>%
+    #   unique()
+    lc_fc_cols = grep("lc_fc_[0-9]+",colnames(peptide_fc))
+    hc_fc_cols = grep("hc_fc_[0-9]+",colnames(peptide_fc))
+    
+    test_drl_sign = apply(peptide_fc[,lc_fc_cols], 1, test_equal_sign)
+    test_drh_sign = apply(peptide_fc[,hc_fc_cols], 1, test_equal_sign)
+    
+    
+    rel_data = peptide_fc%>%
+      dplyr::mutate(drl = test_drl_sign, drh = test_drh_sign)
+    
   
   #### return some lables 
   rel_dr = rel_data%>%
     dplyr::group_by(protein, description)%>%
     dplyr::summarise(npep = n(),
                      same_drl = npos(drl), 
-                     diff_drl = nneg(drl),
+                     diff_drl = nzero(drl),
                      same_drh = npos(drh),
-                     diff_drh = nneg(drh))%>%
+                     diff_drh = nzero(drh))%>%
     dplyr::ungroup()%>%
     dplyr::mutate(rel_low = case_when(diff_drl == 0 ~ T,
                                       diff_drl > 0 ~ F),
                   rel_high = case_when(diff_drh == 0 ~ T,
                                        diff_drh >0 ~ F))
+  
+  
   write.table(rel_dr, output_name, 
               quote = F, row.names = F, sep = "\t")
   
@@ -165,29 +338,38 @@ testReliability_afterFC = function(peptide_fc,
 
 
 
-#### mapDIA process 
-
-#### make it compatible with windows 
-
-mapDIApro = function(working_dir,
+mapDIApro_r = function(num_rep,
+                       working_dir,
                      mapDIA_dir,
                      userSystem,
+                     
                      default_input_filename,
                      change_input_filename,
                      peptide_df_filename,
                      analysis_output_name)
-
-
+  
+  
 {
+  # num_rep = rep_number
+  # working_dir = workingDir
+  # mapDIA_dir = mapDIADir
+  # userSystem = userSystem
+  # default_input_filename = defaultInput_parameter
+  # change_input_filename =   paste0(workingDir, "input1.txt")
+  # peptide_df_filename = cleanData_outputname1
+  # analysis_output_name = "mapDIA_output1.txt"
+  # 
+  
   
   default_input = readLines(default_input_filename)
   
- 
   
-  set_SDF = 3
+  
+  #set_SDF = 2
   
   default_input[2] = paste0("FILE= ", peptide_df_filename)
-  default_input[17] = paste0("SDF= ", set_SDF)
+  #default_input[17] = paste0("SDF= ", set_SDF)
+  default_input[25] = paste0("SIZE= ", num_rep)
   
   
   
@@ -202,7 +384,7 @@ mapDIApro = function(working_dir,
   
   
   
- # setwd(workingDir)
+  # setwd(workingDir)
   
   linux_command =  paste0( mapDIA_dir, "mapDIA ", change_input_filename)
   #windows_command =  paste0( mapDIA_dir, "mapDIA_win64.exe ", change_input_filename)
@@ -219,7 +401,7 @@ mapDIApro = function(working_dir,
     system2(command = wcmd,
             args = warg)
     
-
+    
   }else{
     
     cat("run mapDIA now","\n")
@@ -227,7 +409,7 @@ mapDIApro = function(working_dir,
     system(linux_command)
     
   }
-
+  
   
   
   this_dir = getwd()
@@ -244,15 +426,15 @@ mapDIApro = function(working_dir,
     cat("$$$$$$$$$$$$$$$$$$$$ ", this_dir,"\n")
     
     w_old_output_name = paste0(this_dir, "/analysis_output.txt")
-  #  wo = gsub("/", "\\\\",
-   #           w_old_output_name )
+    #  wo = gsub("/", "\\\\",
+    #           w_old_output_name )
     
     w_new_output_name = paste0(working_dir, analysis_output_name)
-  #  wn = gsub("/", "\\\\",
-   #           w_new_output_name )
+    #  wn = gsub("/", "\\\\",
+    #           w_new_output_name )
     
-   windows_mv_command = paste0("move ", w_old_output_name," ",w_new_output_name)
-  #  windows_mv_command = paste0("move ", wo," ",wn)
+    windows_mv_command = paste0("move ", w_old_output_name," ",w_new_output_name)
+    #  windows_mv_command = paste0("move ", wo," ",wn)
     
     shell(windows_mv_command)
     
@@ -269,88 +451,51 @@ mapDIApro = function(working_dir,
 
 
 
-### another way of fc calculation 
-### mean the peptide after normalization rather than aggregate them 
-
-calFoldChange1 = function(peptide_df,
-                          output_name)
- {
-
-  
-  data_pep = log2(peptide_df[,-c(1,2,3)])
-  
-  ### normalize 
-  
-
-  each_med = apply(data_pep, 2, median)
-  
-  med_each_med = median(each_med)
-  
-  norm_pep_log2data = sweep(data_pep, 2, each_med) + med_each_med
-  
-  ### get fold change
-  #### how to keep tracking the gene name of each protein 
-  
-  norm_log_peptide_df = cbind(peptide_df[,c(1,2,3)], norm_pep_log2data)%>%
-    dplyr::group_by(protein, description)%>%
-    dplyr::summarise_at(vars(b1_ctrl:b2_high), mean)%>%
-    dplyr::ungroup()%>%
-    dplyr::mutate(fc_l_b1 = b1_low - b1_ctrl, fc_l_b2 = b2_low -b2_ctrl)%>%
-    dplyr::mutate(fc_h_b1 = b1_high - b1_ctrl, fc_h_b2 = b2_high -b2_ctrl)%>%
-    dplyr::mutate(fc_l = (fc_l_b1+fc_l_b2)/2,
-                  fc_h = (fc_h_b1+fc_h_b2)/2)%>%
-    dplyr::mutate(fc_l_diff = fc_l_b2 - fc_l_b1,
-                  fc_h_diff = fc_h_b2 - fc_h_b1)
-    
-  
-  write.table(norm_log_peptide_df, 
-              output_name,
-              quote = F, row.names = F, sep = "\t")
-  
-    
-  return(norm_log_peptide_df)
-    
-  
-  
-  
-}
-
-
-
-
-
-
-
-
-joinScatterOutput = function(pepFC1,
-                       pepFC2,
-                       fc_upper = 1.3,
-                       fc_lower = 0.7,
-                       mapDIA_output_filename1,
-                       mapDIA_output_filename2,
-                       mapDIA_sigCutoff,
-                       prot_reliable_filename1,
-                       prot_reliable_filename2,
-                       low_output_name,
-                       high_output_name,
-                       low_pdf_name,
-                       high_pdf_name)
+joinScatterOutput_r = function(pepFC1,
+                             pepFC2,
+                             fc_upper = 1.3,
+                             fc_lower = 0.7,
+                             mapDIA_output_filename1,
+                             mapDIA_output_filename2,
+                             mapDIA_sigCutoff,
+                             prot_reliable_filename1,
+                             prot_reliable_filename2,
+                             low_output_name,
+                             high_output_name,
+                             full_output_name,
+                             low_pdf_name,
+                             high_pdf_name)
 
 {
+  # 
+  # pepFC1 = fc37
+  # pepFC2 = fc52
+  # fc_upper = cutoff_uFc
+  # fc_lower = cutoff_lFc
+  # mapDIA_output_filename1 = mapDIA_out1
+  # mapDIA_output_filename2 = mapDIA_out2
+  # mapDIA_sigCutoff = cutoff_mapDIA
+  # prot_reliable_filename1 = reliability_outputname1
+  # prot_reliable_filename2 = reliability_outputname2
+  # low_output_name = low_outputname
+  # high_output_name = high_outputname
+  # low_pdf_name  = low_pdfname
+  # high_pdf_name = high_pdfname
+  # 
+  # 
+  
   
   join_pep = pepFC1%>%
     dplyr::left_join(pepFC2, by = c("protein","description"))%>%
     na.omit()
   
-    # 
+  # 
   join_pep_low = join_pep%>%
-    dplyr::select(protein,description, fc_l.x, fc_l.y, fc_l_diff.x, fc_l_diff.y)#%>%
-  #dplyr::mutate(sigFlag = "noneSig", relFlag = "noneRel")
+    dplyr::select(protein,description, lc_fc_mean.x, lc_fc_mean.y, lc_fc_sd.x, lc_fc_sd.y)
 
   
   join_pep_high = join_pep%>%
-    dplyr::select(protein, description, fc_h.x, fc_h.y, fc_h_diff.x, fc_h_diff.y)#%>%
-  # dplyr::mutate(sigFlag = "noneSig", relFlag = "noneRel")
+    dplyr::select(protein,description, hc_fc_mean.x, hc_fc_mean.y, hc_fc_sd.x, hc_fc_sd.y)
   
   
   
@@ -368,7 +513,7 @@ joinScatterOutput = function(pepFC1,
       dplyr::select(Protein, Label2, FDR.x, FDR.y)
     
     prot_gn_df = rbindlist(lapply(1:nrow(join_fdr), function(x)
-      {
+    {
       this_line  = unlist(strsplit(join_fdr$Protein[x],split = "_"))
       
       this_prot = this_line[1]
@@ -395,7 +540,7 @@ joinScatterOutput = function(pepFC1,
     
     join_pep_low = join_pep_low%>%
       dplyr::left_join(join_fdr_low, by = c("protein", "description"))%>%
-      dplyr::select(protein, description,fc_l.x, fc_l.y, FDR.x, FDR.y, sigFlag,fc_l_diff.x, fc_l_diff.y )
+      dplyr::select(protein,lc_fc_mean.x, lc_fc_mean.y, description, FDR.x, FDR.y, sigFlag,lc_fc_sd.x, lc_fc_sd.y)
     
     
     join_fdr_high = join_fdr_des %>%
@@ -408,9 +553,7 @@ joinScatterOutput = function(pepFC1,
     
     join_pep_high = join_pep_high%>%
       dplyr::left_join(join_fdr_high, by = c("protein","description"))%>%
-      dplyr::select(protein,description, fc_h.x, fc_h.y, FDR.x, FDR.y, sigFlag, fc_h_diff.x, fc_h_diff.y)
-    
-    
+      dplyr::select(protein,hc_fc_mean.x, hc_fc_mean.y, description, FDR.x, FDR.y, sigFlag,hc_fc_sd.x, hc_fc_sd.y)
     
   }
   
@@ -455,12 +598,12 @@ joinScatterOutput = function(pepFC1,
       dplyr::left_join(join_rel_high, by =c("protein", "description"))
     
   }
-    # 
+  # 
   write.table(join_pep_low, low_output_name, quote = F, row.names = F, sep = "\t")
   write.table(join_pep_high, high_output_name, quote = F, row.names = F, sep = "\t")
   
   #### ok there is some thing with the ploting of names 
- 
+  
   
   prot_des_low = join_pep_low%>%
     dplyr::select(protein, description)%>%
@@ -479,7 +622,7 @@ joinScatterOutput = function(pepFC1,
     dplyr::left_join(prot_des_low, by = c("protein","description"))
   
   
-   
+  
   prot_des_high = join_pep_high%>%
     dplyr::select(protein, description)%>%
     unique()%>%
@@ -490,7 +633,7 @@ joinScatterOutput = function(pepFC1,
     dplyr::mutate(symbol = case_when(ticker>1 ~ paste0(description,"-",ticker),
                                      ticker ==1 ~ description))%>%
     dplyr::select(protein, description, symbol)
-
+  
   
   ### map back 
   symbol_join_pep_high = join_pep_high%>%
@@ -502,7 +645,7 @@ joinScatterOutput = function(pepFC1,
   
   ### low/control
   pdf(low_pdf_name, useDingbats = F)
-  plot(symbol_join_pep_low$fc_l.x, symbol_join_pep_low$fc_l.y,
+  plot(symbol_join_pep_low$lc_fc_mean.x, symbol_join_pep_low$lc_fc_mean.y,
        type = "p", pch = 16, cex = 0.3,
        xlim = c(-1.5,1.5),
        ylim = c(-1.5,1.5),
@@ -519,55 +662,55 @@ joinScatterOutput = function(pepFC1,
   ### add marks to the fc ones 
   
   join_low_hit = symbol_join_pep_low%>%
-       dplyr::filter(fc_l.x>log2(fc_upper)| fc_l.x<log2(fc_lower) | fc_l.y>log2(fc_upper)| fc_l.y<log2(fc_lower))
-
+    dplyr::filter(lc_fc_mean.x>log2(fc_upper)| lc_fc_mean.x<log2(fc_lower) | lc_fc_mean.y>log2(fc_upper)| lc_fc_mean.y<log2(fc_lower))
   
-
-  text(jitter(join_low_hit$fc_l.x),jitter(join_low_hit$fc_l.y), 
+  
+  
+  text(jitter(join_low_hit$lc_fc_mean.x),jitter(join_low_hit$lc_fc_mean.y), 
        labels = join_low_hit$symbol, pos = 1, cex = 0.25)
   
   
   
-
+  
   if("relFlag"%in%colnames(join_pep_low))
   {
-
+    
     plot_rel = symbol_join_pep_low%>%
       dplyr::filter(relFlag == "bothRel"| relFlag == "firstRel" | relFlag == "secondRel")
     rel_pch = rep(16, nrow(plot_rel))
     rel_pch[which(plot_rel$relFlag == "bothRel")] = 2
     rel_pch[which(plot_rel$relFlag == "firstRel")] = 0
     rel_pch[which(plot_rel$relFlag == "secondRel")] = 0
-
-
-    lines(plot_rel$fc_l.x, plot_rel$fc_l.y,
+    
+    
+    lines(plot_rel$lc_fc_mean.x, plot_rel$lc_fc_mean.y,
           type = "p", pch = rel_pch, cex = 0.4)
-
-
-
+    
+    
+    
   }
-
-
+  
+  
   if("sigFlag"%in%colnames(join_pep_low))
   {
     plot_sig = symbol_join_pep_low%>%
       dplyr::filter(sigFlag == "bothSig" | sigFlag == "firstSig" | sigFlag == "secondSig")
-
+    
     sig_col = rep("black", nrow(plot_sig))
     sig_col[which(plot_sig$sigFlag == "bothSig")] = "red"
     sig_col[which(plot_sig$sigFlag == "firstSig")] = "green"
     sig_col[which(plot_sig$sigFlag == "secondSig")] = "green"
-
-
-    lines(plot_sig$fc_l.x, plot_sig$fc_l.y,
+    
+    
+    lines(plot_sig$lc_fc_mean.x, plot_sig$lc_fc_mean.y,
           type = "p", pch = 16, cex = 0.5,
           col = sig_col)
-
-
-
+    
+    
+    
   }
-
-
+  
+  
   legend(1, 1.5, legend=c("bothSig", "oneSig","bothRel","oneRel"),
          col=c("red", "green","black","black"), pch = c(16,16,2,0), cex=0.8)
   
@@ -584,7 +727,7 @@ joinScatterOutput = function(pepFC1,
   
   
   pdf(high_pdf_name, useDingbats = F)
-  plot(symbol_join_pep_high$fc_h.x, symbol_join_pep_high$fc_h.y,
+  plot(symbol_join_pep_high$hc_fc_mean.x, symbol_join_pep_high$hc_fc_mean.y,
        type = "p", pch = 16, cex = 0.3,
        xlim = c(-1.5,1.5),
        ylim = c(-1.5,1.5),
@@ -600,14 +743,14 @@ joinScatterOutput = function(pepFC1,
   
   
   join_high_hit = symbol_join_pep_high%>%
-    dplyr::filter(fc_h.x>log2(fc_upper)| fc_h.x<log2(fc_lower) | fc_h.y>log2(fc_upper)| fc_h.y<log2(fc_lower))
+    dplyr::filter(hc_fc_mean.x>log2(fc_upper)| hc_fc_mean.x<log2(fc_lower) | hc_fc_mean.y>log2(fc_upper)| hc_fc_mean.y<log2(fc_lower))
   
   
-  text(jitter(join_high_hit$fc_h.x, factor = 5),jitter(join_high_hit$fc_h.y, factor = 5), labels = join_high_hit$symbol, pos = 1, cex = 0.25)
+  text(jitter(join_high_hit$hc_fc_mean.x, factor = 5),jitter(join_high_hit$hc_fc_mean.y, factor = 5), labels = join_high_hit$symbol, pos = 1, cex = 0.25)
   
   
   
-
+  
   
   if("relFlag"%in%colnames(join_pep_high))
   {
@@ -620,7 +763,7 @@ joinScatterOutput = function(pepFC1,
     rel_pch[which(plot_rel$relFlag == "secondRel")] = 0
     
     
-    lines(plot_rel$fc_h.x, plot_rel$fc_h.y,
+    lines(plot_rel$hc_fc_mean.x, plot_rel$hc_fc_mean.y,
           type = "p", pch = rel_pch, cex = 0.4)
     
     
@@ -639,13 +782,15 @@ joinScatterOutput = function(pepFC1,
     sig_col[which(plot_sig$sigFlag == "secondSig")] = "green"
     
     
-    lines(plot_sig$fc_h.x, plot_sig$fc_h.y,
+    lines(plot_sig$hc_fc_mean.x, plot_sig$hc_fc_mean.y,
           type = "p", pch = 16, cex = 0.5,
           col = sig_col)
     
     
     
   }
+  
+  
   
   legend(1, 1.5, legend=c("bothSig", "oneSig","bothRel","oneRel"),
          col=c("red", "green","black","black"), pch = c(16,16,2,0), cex=0.8)
@@ -656,23 +801,13 @@ joinScatterOutput = function(pepFC1,
   dev.off()
   
   
-  
+  write.table(join_pep, full_output_name, quote = F, row.names = F, sep = "\t")
   
   return(join_pep)
   
   
   
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
