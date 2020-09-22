@@ -138,7 +138,7 @@ if(mapDIA_flag == T)
 
 low_outputname = paste0(workingDir, outputTagS1,".tsv")
 high_outputname = paste0(workingDir, outputTagS2,".tsv")
-full_outputname = paste0(workingDir, outputTagS1, "_",outputTagS2,".pdf")
+full_outputname = paste0(workingDir, outputTagS1, "_",outputTagS2,".tsv")
 
 low_pdfname = paste0(workingDir, outputTagS1,".pdf")
 high_pdfname = paste0(workingDir, outputTagS2,".pdf")
