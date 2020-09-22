@@ -37,6 +37,8 @@ twoTemp_foldChange_r = function(rawData_inputfilename1,
                               outputTagS1,
                               outputTagS2)
 {
+  create_cmd = paste0("mkdir ", workingDir)
+  system(create_cmd)
 
 cleanData_outputname1 = paste0(workingDir, "clean1.tsv")
 cleanData_outputname2 = paste0(workingDir, "clean2.tsv")
